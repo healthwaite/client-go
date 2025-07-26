@@ -39,6 +39,7 @@ import (
 	"net/url"
 	"strings"
 	"sync/atomic"
+	"time"
 
 	"github.com/pkg/errors"
 	"github.com/tikv/client-go/v2/internal/logutil"
@@ -46,6 +47,18 @@ import (
 	"github.com/tikv/client-go/v2/util"
 	"go.uber.org/zap"
 )
+
+var (
+	SleepDuration int64 = 0
+)
+
+func SetSleepDuration(timeMs time.Duration) {
+	atomic.StoreInt64(&SleepDuration, int64(timeMs))
+}
+
+func GetSleepDuration() time.Duration {
+	return time.Duration(atomic.LoadInt64(&SleepDuration))
+}
 
 var (
 	globalConf atomic.Value
@@ -78,6 +91,10 @@ type Config struct {
 	TxnScope              string
 	EnableAsyncCommit     bool
 	Enable1PC             bool
+	// RegionsRefreshInterval indicates the interval of loading regions info, the unit is second, if RegionsRefreshInterval == 0, it will be disabled.
+	RegionsRefreshInterval uint64
+	// EnablePreload indicates whether to preload region info when initializing the client.
+	EnablePreload bool
 }
 
 // DefaultConfig returns the default configuration.

@@ -43,6 +43,8 @@ import (
 	"sync/atomic"
 	"time"
 
+	oldproto "github.com/golang/protobuf/proto"
+
 	"github.com/pingcap/kvproto/pkg/tikvpb"
 	"github.com/pkg/errors"
 	"github.com/prometheus/client_golang/prometheus"
@@ -58,6 +60,85 @@ import (
 	"google.golang.org/grpc/connectivity"
 	"google.golang.org/grpc/metadata"
 )
+
+func cloneRequest(req *tikvpb.BatchCommandsRequest) *tikvpb.BatchCommandsRequest {
+	clone := &tikvpb.BatchCommandsRequest{
+		RequestIds: make([]uint64, len(req.RequestIds)),
+		Requests:   make([]*tikvpb.BatchCommandsRequest_Request, len(req.Requests)),
+	}
+	copy(clone.RequestIds, req.RequestIds)
+
+	for i, r := range req.Requests {
+		if r != nil {
+			clone.Requests[i] = oldproto.Clone(r).(*tikvpb.BatchCommandsRequest_Request)
+		}
+	}
+
+	return clone
+}
+
+type delayedSendClient struct {
+	tikvpb.Tikv_BatchCommandsClient               // embedded interface
+	delay                           time.Duration // how long to wait before sending
+	sendQueue                       chan *tikvpb.BatchCommandsRequest
+	ctx                             context.Context
+	cancel                          context.CancelFunc
+}
+
+func newDelayedSendClient(inner tikvpb.Tikv_BatchCommandsClient, delay time.Duration) *delayedSendClient {
+	ctx, cancel := context.WithCancel(context.Background())
+	c := &delayedSendClient{
+		Tikv_BatchCommandsClient: inner,
+		delay:                    delay,
+		sendQueue:                make(chan *tikvpb.BatchCommandsRequest, 100), // bounded queue
+		ctx:                      ctx,
+		cancel:                   cancel,
+	}
+
+	go c.sendLoop()
+
+	return c
+}
+
+func (c *delayedSendClient) sendLoop() {
+	for {
+		select {
+		case <-c.ctx.Done():
+			return
+		case req := <-c.sendQueue:
+			go func(req *tikvpb.BatchCommandsRequest) {
+				sleep := config.GetSleepDuration()
+				//fmt.Printf("SendLoop: got request sleeping for %v [%v]\n", sleep, req)
+				time.Sleep(sleep)
+				//fmt.Printf("SendLoop: sleep over sending requests now %v [%v]\n", sleep, req)
+				_ = c.Tikv_BatchCommandsClient.Send(req) // error intentionally ignored; handle if needed
+			}(req)
+		}
+	}
+}
+
+// Send returns immediately, enqueuing the request
+func (c *delayedSendClient) Send(req *tikvpb.BatchCommandsRequest) error {
+	sleep := config.GetSleepDuration()
+	if sleep == 0 {
+		//fmt.Printf("Sending request immediately req %v\n", req)
+		return c.Tikv_BatchCommandsClient.Send(req)
+	}
+	clonedReq := cloneRequest(req)
+	select {
+	case c.sendQueue <- clonedReq:
+		//fmt.Printf("Enqueued request for delayed send sleep=%v %v\n", sleep, req)
+		return nil
+	default:
+		return errors.New("send queue full") // backpressure handling
+	}
+}
+
+// Close cleans up the goroutine
+func (c *delayedSendClient) CloseSend() error {
+	c.cancel()
+	return c.Tikv_BatchCommandsClient.CloseSend()
+}
 
 type batchCommandsEntry struct {
 	ctx context.Context
@@ -460,7 +541,9 @@ func (s *batchCommandsStream) recreate(conn *grpc.ClientConn) error {
 	if err != nil {
 		return errors.WithStack(err)
 	}
-	s.Tikv_BatchCommandsClient = streamClient
+
+	delayedStreamClient := newDelayedSendClient(streamClient, 5*time.Second)
+	s.Tikv_BatchCommandsClient = delayedStreamClient
 	return nil
 }
 
@@ -516,6 +599,7 @@ func (c *batchCommandsClient) send(forwardedHost string, req *tikvpb.BatchComman
 	if forwardedHost != "" {
 		client = c.forwardedClients[forwardedHost]
 	}
+
 	if err := client.Send(req); err != nil {
 		logutil.BgLogger().Info(
 			"sending batch commands meets error",
@@ -627,6 +711,7 @@ func (c *batchCommandsClient) batchRecvLoop(cfg config.TiKVClient, tikvTransport
 		responses := resp.GetResponses()
 		for i, requestID := range resp.GetRequestIds() {
 			value, ok := c.batched.Load(requestID)
+			//fmt.Printf("Got response for request_id=%d ok=%v\n", requestID, ok)
 			if !ok {
 				// this maybe caused by batchCommandsClient#send meets ambiguous error that request has be sent to TiKV but still report a error.
 				// then TiKV will send response back though stream and reach here.
@@ -641,7 +726,10 @@ func (c *batchCommandsClient) batchRecvLoop(cfg config.TiKVClient, tikvTransport
 			logutil.Eventf(entry.ctx, "receive %T response with other %d batched requests from %s", responses[i].GetCmd(), len(responses), c.target)
 			if atomic.LoadInt32(&entry.canceled) == 0 {
 				// Put the response only if the request is not canceled.
+				//fmt.Printf("Returning response for request_id=%d ok=%v\n", requestID, ok)
 				entry.res <- responses[i]
+			} else {
+				//fmt.Printf("NOT Returning response for request_id=%d ok=%v\n", requestID, ok)
 			}
 			c.batched.Delete(requestID)
 		}
@@ -788,6 +876,7 @@ func sendBatchRequest(
 
 	select {
 	case res, ok := <-entry.res:
+		//fmt.Printf("Got response %v ok=%v\n", res, ok)
 		if !ok {
 			return nil, errors.WithStack(entry.err)
 		}
