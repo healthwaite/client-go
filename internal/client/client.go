@@ -655,9 +655,23 @@ func (c *RPCClient) sendRequest(ctx context.Context, addr string, req *tikvrpc.R
 		return c.getMPPStreamResponse(ctx, client, req, timeout, connArray)
 	}
 	// Or else it's a unary call.
-	ctx1, cancel := context.WithTimeout(ctx, timeout)
-	defer cancel()
-	return tikvrpc.CallRPC(ctx1, client, req)
+	sleep := config.GetSleepDuration()
+	if sleep == 0 {
+		ctx1, cancel := context.WithTimeout(ctx, timeout)
+		defer cancel()
+		return tikvrpc.CallRPC(ctx1, client, req)
+	} else {
+		go func() {
+			time.Sleep(sleep)
+			tikvrpc.CallRPC(context.Background(), client, req)
+		}()
+		deadline, ok := ctx.Deadline()
+		if ok {
+			time.Sleep(deadline.Sub(time.Now()))
+		}
+		return nil, context.DeadlineExceeded
+	}
+
 }
 
 // SendRequest sends a Request to server and receives Response.
