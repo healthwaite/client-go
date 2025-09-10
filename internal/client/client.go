@@ -73,6 +73,9 @@ import (
 	"google.golang.org/grpc/metadata"
 )
 
+var reqsMapMutex sync.Mutex
+var reqsMap map[string][]*config.ObjGen2Context = make(map[string][]*config.ObjGen2Context, 10000)
+
 // MaxRecvMsgSize set max gRPC receive message size received from server. If any message size is larger than
 // current value, an error will be reported from gRPC.
 var MaxRecvMsgSize = math.MaxInt64 - 1
@@ -623,6 +626,32 @@ func (c *RPCClient) sendRequest(ctx context.Context, addr string, req *tikvrpc.R
 	if config.GetGlobalConfig().TiKVClient.MaxBatchSize > 0 && enableBatch {
 		if batchReq := req.ToBatchCommandsRequest(); batchReq != nil {
 			defer trace.StartRegion(ctx, req.Type.String()).End()
+
+			func() {
+				if v := ctx.Value(config.ObjGen2Key); v != nil {
+					thisRequest, ok := v.(*config.ObjGen2Context)
+					if !ok {
+						logutil.BgLogger().Error("expected *ObjGen2Context in context")
+						return
+					}
+
+					// Lookup in reqs map to see if there's already a request in flight
+					reqsMapMutex.Lock()
+					defer reqsMapMutex.Unlock()
+
+					objectKey := thisRequest.ObjectName
+					curRequests, ok := reqsMap[objectKey]
+					if ok {
+						// If there is then log an error
+						logutil.BgLogger().Warn("request already in flight", zap.Any("inflight_requests", curRequests), zap.Any("this_request", *thisRequest))
+					}
+
+					// Insert key into reqs map
+					curRequests = append(curRequests, thisRequest)
+					reqsMap[objectKey] = curRequests
+					logutil.BgLogger().Debug("start insert namespace key", zap.String("object_key", objectKey), zap.Any("inflight_requests", curRequests))
+				}
+			}()
 			return sendBatchRequest(ctx, addr, req.ForwardedHost, connArray.batchConn, batchReq, timeout)
 		}
 	}

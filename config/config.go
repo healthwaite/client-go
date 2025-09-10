@@ -39,6 +39,7 @@ import (
 	"net/url"
 	"strings"
 	"sync/atomic"
+	"time"
 
 	"github.com/pkg/errors"
 	"github.com/tikv/client-go/v2/internal/logutil"
@@ -46,6 +47,15 @@ import (
 	"github.com/tikv/client-go/v2/util"
 	"go.uber.org/zap"
 )
+
+const ObjGen2Key = "objgen2-special"
+
+type ObjGen2Context struct {
+	ObjectName string
+	StartTime  time.Time
+	ClusterId  int
+	Op         string
+}
 
 var (
 	globalConf atomic.Value

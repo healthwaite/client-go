@@ -39,6 +39,7 @@ import (
 	"context"
 	"math"
 	"runtime/trace"
+	"slices"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -634,6 +635,35 @@ func (c *batchCommandsClient) batchRecvLoop(cfg config.TiKVClient, tikvTransport
 				continue
 			}
 			entry := value.(*batchCommandsEntry)
+
+			func() {
+				if v := entry.ctx.Value(config.ObjGen2Key); v != nil {
+					thisRequest, ok := v.(*config.ObjGen2Context)
+					if !ok {
+						logutil.BgLogger().Error("expected *ObjGen2Context in context")
+						return
+					}
+
+					reqsMapMutex.Lock()
+					defer reqsMapMutex.Unlock()
+
+					objectKey := thisRequest.ObjectName
+					curRequests := reqsMap[objectKey]
+					curRequests = slices.DeleteFunc(curRequests, func(c *config.ObjGen2Context) bool {
+						if c.StartTime == thisRequest.StartTime {
+							return true
+						}
+						return false
+					})
+					reqsMap[objectKey] = curRequests
+
+					logutil.BgLogger().Debug("finished insert namespace key", zap.String("object_key", objectKey), zap.Any("inflight_requests", curRequests), zap.Any("this_request", *thisRequest))
+
+					if len(curRequests) == 0 {
+						delete(reqsMap, objectKey)
+					}
+				}
+			}()
 
 			if trace.IsEnabled() {
 				trace.Log(entry.ctx, "rpc", "received")
