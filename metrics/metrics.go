@@ -41,6 +41,7 @@ import (
 
 // Client metrics.
 var (
+	MultipleRequestsInflight                 prometheus.Counter
 	TiKVTxnCmdHistogram                      *prometheus.HistogramVec
 	TiKVBackoffHistogram                     *prometheus.HistogramVec
 	TiKVSendReqHistogram                     *prometheus.HistogramVec
@@ -127,6 +128,13 @@ const (
 )
 
 func initMetrics(namespace, subsystem string) {
+	MultipleRequestsInflight = prometheus.NewCounter(
+		prometheus.CounterOpts{
+			Namespace: namespace,
+			Subsystem: subsystem,
+			Name:      "multiple_namespace_key_insert_requests_in_flight",
+			Help:      "Multiple namespace key insert operations in flight",
+		})
 	TiKVTxnCmdHistogram = prometheus.NewHistogramVec(
 		prometheus.HistogramOpts{
 			Namespace: namespace,

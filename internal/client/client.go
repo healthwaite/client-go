@@ -644,6 +644,7 @@ func (c *RPCClient) sendRequest(ctx context.Context, addr string, req *tikvrpc.R
 					if ok {
 						// If there is then log an error
 						logutil.BgLogger().Warn("request already in flight", zap.Any("inflight_requests", curRequests), zap.Any("this_request", *thisRequest))
+						metrics.MultipleRequestsInflight.Add(1)
 					}
 
 					// Insert key into reqs map
