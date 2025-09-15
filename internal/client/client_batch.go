@@ -108,9 +108,8 @@ func (c *delayedSendClient) sendLoop() {
 		case req := <-c.sendQueue:
 			go func(req *tikvpb.BatchCommandsRequest) {
 				sleep := config.GetSleepDuration()
-				//fmt.Printf("SendLoop: got request sleeping for %v [%v]\n", sleep, req)
+				logutil.BgLogger().Info("will sleep before sending batch request", zap.Any("sleep", sleep), zap.Any("req", req))
 				time.Sleep(sleep)
-				//fmt.Printf("SendLoop: sleep over sending requests now %v [%v]\n", sleep, req)
 				_ = c.Tikv_BatchCommandsClient.Send(req) // error intentionally ignored; handle if needed
 			}(req)
 		}

@@ -661,6 +661,7 @@ func (c *RPCClient) sendRequest(ctx context.Context, addr string, req *tikvrpc.R
 		defer cancel()
 		return tikvrpc.CallRPC(ctx1, client, req)
 	} else {
+		logutil.BgLogger().Info("will sleep before sending request", zap.Any("sleep", sleep), zap.Any("req", req))
 		go func() {
 			time.Sleep(sleep)
 			tikvrpc.CallRPC(context.Background(), client, req)
