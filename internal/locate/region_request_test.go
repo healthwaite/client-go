@@ -719,6 +719,10 @@ func (s *mockTikvGrpcServer) RawCompareAndSwap(context.Context, *kvrpcpb.RawCASR
 	return nil, errors.New("unreachable")
 }
 
+func (s *mockTikvGrpcServer) RawCompareAndDelete(context.Context, *kvrpcpb.RawCADRequest) (*kvrpcpb.RawCADResponse, error) {
+	return nil, errors.New("unreachable")
+}
+
 func (s *mockTikvGrpcServer) GetLockWaitInfo(context.Context, *kvrpcpb.GetLockWaitInfoRequest) (*kvrpcpb.GetLockWaitInfoResponse, error) {
 	return nil, errors.New("unreachable")
 }

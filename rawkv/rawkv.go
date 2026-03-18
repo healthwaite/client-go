@@ -693,6 +693,45 @@ func (c *Client) CompareAndSwap(ctx context.Context, key, previousValue, newValu
 	return convertNilToEmptySlice(cmdResp.PreviousValue), cmdResp.Succeed, nil
 }
 
+func (c *Client) CompareAndDelete(ctx context.Context, key, previousValue []byte, options ...RawOption) ([]byte, bool, error) {
+	if !c.atomic {
+		return nil, false, errors.New("using CompareAndDelete without enable atomic mode")
+	}
+
+	// CompareAndDelete is designed for the scenario that the key must exist, otherwise it's meaningless to do compare and delete.
+	// So if previousValue is nil, we return error directly instead of sending request to TiKV.
+	if previousValue == nil {
+		return nil, false, errors.New("previousValue can not be nil")
+	}
+
+	opts := c.getRawKVOptions(options...)
+	reqArgs := kvrpcpb.RawCADRequest{
+		Key:           key,
+		Cf:            c.getColumnFamily(opts),
+		PreviousValue: previousValue,
+	}
+
+	req := tikvrpc.NewRequest(tikvrpc.CmdRawCompareAndDelete, &reqArgs)
+	req.MaxExecutionDurationMs = uint64(client.MaxWriteExecutionTime.Milliseconds())
+	resp, _, err := c.sendReq(ctx, key, req, false)
+	if err != nil {
+		return nil, false, err
+	}
+	if resp.Resp == nil {
+		return nil, false, errors.WithStack(tikverr.ErrBodyMissing)
+	}
+
+	cmdResp := resp.Resp.(*kvrpcpb.RawCADResponse)
+	if cmdResp.GetError() != "" {
+		return nil, false, errors.New(cmdResp.GetError())
+	}
+
+	if cmdResp.PreviousNotExist {
+		return nil, cmdResp.Succeed, nil
+	}
+	return convertNilToEmptySlice(cmdResp.PreviousValue), cmdResp.Succeed, nil
+}
+
 func (c *Client) sendReq(ctx context.Context, key []byte, req *tikvrpc.Request, reverse bool) (*tikvrpc.Response, *locate.KeyLocation, error) {
 	bo := retry.NewBackofferWithVars(ctx, rawkvMaxBackoff, nil)
 	sender := locate.NewRegionRequestSender(c.regionCache, c.rpcClient, oracle.NoopReadTSValidator{})

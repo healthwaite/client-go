@@ -88,6 +88,7 @@ const (
 	CmdRawScan
 	CmdRawGetKeyTTL
 	CmdRawCompareAndSwap
+	CmdRawCompareAndDelete
 	CmdRawChecksum
 
 	CmdUnsafeDestroyRange
