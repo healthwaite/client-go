@@ -215,6 +215,15 @@ func patchCmdCtx(req *Request, cmd CmdType, ctx *kvrpcpb.Context) bool {
 			req.Req = &cmd
 		}
 		req.rev++
+	case CmdRawCompareAndDelete:
+		if req.rev == 0 {
+			req.RawCompareAndDelete().Context = ctx
+		} else {
+			cmd := *req.RawCompareAndDelete()
+			cmd.Context = ctx
+			req.Req = &cmd
+		}
+		req.rev++
 	case CmdRawChecksum:
 		if req.rev == 0 {
 			req.RawChecksum().Context = ctx
@@ -430,6 +439,8 @@ func isValidReqType(cmd CmdType) bool {
 	case CmdRawGetKeyTTL:
 		return true
 	case CmdRawCompareAndSwap:
+		return true
+	case CmdRawCompareAndDelete:
 		return true
 	case CmdRawChecksum:
 		return true

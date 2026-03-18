@@ -247,6 +247,10 @@ func (c *codecV2) EncodeRequest(req *tikvrpc.Request) (*tikvrpc.Request, error) 
 		r := *req.RawCompareAndSwap()
 		r.Key = c.EncodeKey(r.Key)
 		req.Req = &r
+	case tikvrpc.CmdRawCompareAndDelete:
+		r := *req.RawCompareAndDelete()
+		r.Key = c.EncodeKey(r.Key)
+		req.Req = &r
 	case tikvrpc.CmdRawChecksum:
 		r := *req.RawChecksum()
 		r.Ranges = c.encodeKeyRanges(r.Ranges)
@@ -553,6 +557,12 @@ func (c *codecV2) DecodeResponse(req *tikvrpc.Request, resp *tikvrpc.Response) (
 		}
 	case tikvrpc.CmdRawCompareAndSwap:
 		r := resp.Resp.(*kvrpcpb.RawCASResponse)
+		r.RegionError, err = c.decodeRegionError(r.RegionError)
+		if err != nil {
+			return nil, err
+		}
+	case tikvrpc.CmdRawCompareAndDelete:
+		r := resp.Resp.(*kvrpcpb.RawCADResponse)
 		r.RegionError, err = c.decodeRegionError(r.RegionError)
 		if err != nil {
 			return nil, err

@@ -141,6 +141,9 @@ func (c *codecV1) DecodeResponse(req *tikvrpc.Request, resp *tikvrpc.Response) (
 	case tikvrpc.CmdRawCompareAndSwap:
 		r := resp.Resp.(*kvrpcpb.RawCASResponse)
 		r.RegionError = decodeRegionError
+	case tikvrpc.CmdRawCompareAndDelete:
+		r := resp.Resp.(*kvrpcpb.RawCADResponse)
+		r.RegionError = decodeRegionError
 	case tikvrpc.CmdRawChecksum:
 		r := resp.Resp.(*kvrpcpb.RawChecksumResponse)
 		r.RegionError = decodeRegionError

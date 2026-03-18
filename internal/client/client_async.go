@@ -68,6 +68,7 @@ func (c *RPCClient) SendRequestAsync(ctx context.Context, addr string, req *tikv
 	tikvrpc.AttachContext(req, req.Context)
 
 	// ToBatchCommandsRequest should be called after all modifications to req are done.
+	fmt.Printf("SendRequestAsync: req: %v\n", *req)
 	batchReq := req.ToBatchCommandsRequest()
 	if batchReq == nil {
 		cb.Invoke(nil, errors.New("unsupported request type: "+req.Type.String()))

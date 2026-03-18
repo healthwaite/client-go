@@ -80,6 +80,7 @@ func TestTiDB51921(t *testing.T) {
 		NewRequest(CmdRawScan, &kvrpcpb.RawScanRequest{}),
 		NewRequest(CmdRawGetKeyTTL, &kvrpcpb.RawGetKeyTTLRequest{}),
 		NewRequest(CmdRawCompareAndSwap, &kvrpcpb.RawCASRequest{}),
+		NewRequest(CmdRawCompareAndDelete, &kvrpcpb.RawCADRequest{}),
 		NewRequest(CmdRawChecksum, &kvrpcpb.RawChecksumRequest{}),
 		NewRequest(CmdUnsafeDestroyRange, &kvrpcpb.UnsafeDestroyRangeRequest{}),
 		NewRequest(CmdRegisterLockObserver, &kvrpcpb.RegisterLockObserverRequest{}),

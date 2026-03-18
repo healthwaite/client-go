@@ -551,6 +551,33 @@ func (h kvHandler) HandleKvRawCompareAndSwap(req *kvrpcpb.RawCASRequest) *kvrpcp
 	}
 }
 
+func (h kvHandler) HandleKvRawCompareAndDelete(req *kvrpcpb.RawCADRequest) *kvrpcpb.RawCADResponse {
+	rawKV, ok := h.mvccStore.(RawKV)
+	if !ok {
+		return &kvrpcpb.RawCADResponse{
+			Error: "not implemented",
+		}
+	}
+
+	oldValue, success, err := rawKV.RawCompareAndDelete(
+		req.Cf,
+		req.GetKey(),
+		req.GetPreviousValue(),
+		req.GetValue(),
+	)
+	if err != nil {
+		return &kvrpcpb.RawCADResponse{
+			Error: err.Error(),
+		}
+	}
+
+	return &kvrpcpb.RawCADResponse{
+		Succeed:          success,
+		PreviousNotExist: oldValue == nil,
+		PreviousValue:    oldValue,
+	}
+}
+
 func (h kvHandler) handleKvRawBatchDelete(req *kvrpcpb.RawBatchDeleteRequest) *kvrpcpb.RawBatchDeleteResponse {
 	rawKV, ok := h.mvccStore.(RawKV)
 	if !ok {
@@ -1013,6 +1040,13 @@ func (c *RPCClient) SendRequest(ctx context.Context, addr string, req *tikvrpc.R
 			return resp, nil
 		}
 		resp.Resp = kvHandler{session}.HandleKvRawCompareAndSwap(r)
+	case tikvrpc.CmdRawCompareAndDelete:
+		r := req.RawCompareAndDelete()
+		if err := session.checkRequest(reqCtx, r.Size()); err != nil {
+			resp.Resp = &kvrpcpb.RawCADResponse{RegionError: err}
+			return resp, nil
+		}
+		resp.Resp = kvHandler{session}.HandleKvRawCompareAndDelete(r)
 	case tikvrpc.CmdRawChecksum:
 		r := req.RawChecksum()
 		if err := session.checkRequest(reqCtx, r.Size()); err != nil {
