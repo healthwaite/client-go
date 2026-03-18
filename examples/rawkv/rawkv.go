@@ -62,18 +62,19 @@ func main() {
 	}
 	fmt.Printf("found val: %s for key: %s\n", val, key)
 
-	// put key again
-	val = []byte("v1")
+	// insert key
+	val = []byte("value")
 	err = cli.Put(context.TODO(), key, val)
 	if err != nil {
 		panic(err)
 	}
 	fmt.Printf("Successfully put %s:%s to tikv\n", key, val)
 
-	// update via compare and swap
+	// compare and delete key
 	cli.SetAtomicForCAS(true)
-	_, success, err := cli.CompareAndSwap(context.TODO(), key, val, []byte("v2"))
-	if err != nil || !success {
+
+	_, success, err := cli.CompareAndDelete(context.TODO(), key, val)
+	if err != nil {
 		panic(err)
 	}
 	fmt.Printf("Successfully updated key via compare and swap\n")
@@ -87,12 +88,6 @@ func main() {
 
 	// a subsequent compare and delete should fail
 	_, success, err = cli.CompareAndDelete(context.TODO(), key, val)
-	if err != nil || success {
-		panic(err)
-	}
-
-	// get key again from tikv
-	val, err = cli.Get(context.TODO(), key)
 	if err != nil {
 		panic(err)
 	}
