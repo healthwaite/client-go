@@ -50,6 +50,7 @@ cmds=(
   RawScan
   RawGetKeyTTL
   RawCompareAndSwap
+  RawCompareAndDelete
   RawChecksum
   UnsafeDestroyRange
   RegisterLockObserver
