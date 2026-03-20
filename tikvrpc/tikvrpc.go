@@ -36,7 +36,6 @@ package tikvrpc
 
 import (
 	"context"
-	"fmt"
 	"sync/atomic"
 	"time"
 
@@ -916,7 +915,6 @@ func SetContext(req *Request, region *metapb.Region, peer *metapb.Peer) error {
 
 	// Shallow copy the context to avoid concurrent modification.
 	if !AttachContext(req, req.Context) {
-		fmt.Printf("\n\nHERE\n\n")
 		return errors.Errorf("invalid request type %v", req.Type)
 	}
 	return nil
@@ -925,7 +923,6 @@ func SetContext(req *Request, region *metapb.Region, peer *metapb.Peer) error {
 // SetContextNoAttach likes SetContext, but it doesn't attach the context to the underlying request.
 func SetContextNoAttach(req *Request, region *metapb.Region, peer *metapb.Peer) error {
 	if !isValidReqType(req.Type) {
-		fmt.Printf("\n\nHERE\n\n")
 		return errors.Errorf("invalid request type %v", req.Type)
 	}
 	if region != nil {
@@ -1102,7 +1099,6 @@ func GenRegionErrorResp(req *Request, e *errorpb.Error) (*Response, error) {
 			RegionError: e,
 		}
 	default:
-		fmt.Printf("\n\nHERE\n\n")
 		return nil, errors.Errorf("invalid request type %v", req.Type)
 	}
 	resp.Resp = p
@@ -1133,7 +1129,6 @@ func (resp *Response) GetRegionError() (*errorpb.Error, error) {
 		if isResponseOKToNotImplGetRegionError(resp.Resp) {
 			return nil, nil
 		}
-		fmt.Printf("\n\nHERE\n\n")
 		return nil, errors.Errorf("invalid response type %v", resp)
 	}
 	return err.GetRegionError(), nil
@@ -1341,7 +1336,6 @@ func CallDebugRPC(ctx context.Context, client debugpb.DebugClient, req *Request)
 	case CmdDebugGetRegionProperties:
 		resp.Resp, err = client.GetRegionProperties(ctx, req.DebugGetRegionProperties())
 	default:
-		fmt.Printf("\n\nHERE\n\n")
 		return nil, errors.Errorf("invalid request type: %v", req.Type)
 	}
 	return resp, err
