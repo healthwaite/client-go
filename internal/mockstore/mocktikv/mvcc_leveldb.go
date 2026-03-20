@@ -2008,7 +2008,7 @@ func (mvcc *MVCCLevelDB) RawCompareAndSwap(cf string, key, expectedValue, newVal
 
 // RawCompareAndDelete supports CAD function(delete newValue if expectedValue equals value stored in db).
 // `oldValue` and `swapped` returned specify the old value stored in db and whether CAD has happened.
-func (mvcc *MVCCLevelDB) RawCompareAndDelete(cf string, key, expectedValue []byte,
+func (mvcc *MVCCLevelDB) RawCompareAndDelete(cf string, key, expectedValue, newValue []byte,
 ) (oldValue []byte, swapped bool, err error) {
 	mvcc.mu.Lock()
 	defer mvcc.mu.Unlock()
@@ -2029,9 +2029,6 @@ func (mvcc *MVCCLevelDB) RawCompareAndDelete(cf string, key, expectedValue []byt
 			tikverr.Log(err)
 			return nil, false, errors.WithStack(err)
 		}
-
-		// API expects oldValue==nil to indicate key not found
-		oldValue = nil
 	}
 
 	if !bytes.Equal(oldValue, expectedValue) {
