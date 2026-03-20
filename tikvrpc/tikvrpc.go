@@ -271,6 +271,8 @@ type Request struct {
 	AccessLocation kv.AccessLocationType
 	// rev represents the revision of the request, it's increased when `Req.Context` gets patched.
 	rev uint32
+	// ServerSupportsCASBatching indicates whether the server supports sending RawCASRequest's in BatchCommandsRequest's
+	ServerSupportsCASBatching bool
 }
 
 // NewRequest returns new kv rpc request.
@@ -303,6 +305,13 @@ func (req *Request) SetReplicaReadType(replicaReadType kv.ReplicaReadType) {
 	}
 	req.ReplicaRead = replicaReadType.IsFollowerRead()
 	req.ReplicaReadType = replicaReadType
+}
+
+func (req *Request) SetServerSupportsCASBatching(serverSupportsCASBatching bool) {
+	if req == nil {
+		return
+	}
+	req.ServerSupportsCASBatching = serverSupportsCASBatching
 }
 
 // GetReplicaReadSeed returns ReplicaReadSeed pointer.
@@ -689,6 +698,13 @@ func (req *Request) ToBatchCommandsRequest() *tikvpb.BatchCommandsRequest_Reques
 		return &tikvpb.BatchCommandsRequest_Request{Cmd: &tikvpb.BatchCommandsRequest_Request_GetHealthFeedback{GetHealthFeedback: req.GetHealthFeedback()}}
 	case CmdBroadcastTxnStatus:
 		return &tikvpb.BatchCommandsRequest_Request{Cmd: &tikvpb.BatchCommandsRequest_Request_BroadcastTxnStatus{BroadcastTxnStatus: req.BroadcastTxnStatus()}}
+	case CmdRawCompareAndSwap:
+		if req.ServerSupportsCASBatching {
+			return &tikvpb.BatchCommandsRequest_Request{Cmd: &tikvpb.BatchCommandsRequest_Request_RawCompareAndSwap{RawCompareAndSwap: req.RawCompareAndSwap()}}
+		}
+		return nil
+	case CmdRawCompareAndDelete:
+		return &tikvpb.BatchCommandsRequest_Request{Cmd: &tikvpb.BatchCommandsRequest_Request_RawCompareAndDelete{RawCompareAndDelete: req.RawCompareAndDelete()}}
 	}
 	return nil
 }
@@ -816,6 +832,10 @@ func FromBatchCommandsResponse(res *tikvpb.BatchCommandsResponse_Response) (*Res
 		return &Response{Resp: res.GetHealthFeedback}, nil
 	case *tikvpb.BatchCommandsResponse_Response_BroadcastTxnStatus:
 		return &Response{Resp: res.BroadcastTxnStatus}, nil
+	case *tikvpb.BatchCommandsResponse_Response_RawCompareAndSwap:
+		return &Response{Resp: res.RawCompareAndSwap}, nil
+	case *tikvpb.BatchCommandsResponse_Response_RawCompareAndDelete:
+		return &Response{Resp: res.RawCompareAndDelete}, nil
 	}
 	panic("unreachable")
 }

@@ -563,7 +563,6 @@ func (h kvHandler) HandleKvRawCompareAndDelete(req *kvrpcpb.RawCADRequest) *kvrp
 		req.Cf,
 		req.GetKey(),
 		req.GetPreviousValue(),
-		req.GetValue(),
 	)
 	if err != nil {
 		return &kvrpcpb.RawCADResponse{
