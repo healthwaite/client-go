@@ -370,34 +370,43 @@ func (s *apiTestSuite) TestBatchOp() {
 }
 
 func (s *apiTestSuite) TestCAS() {
-	prefix := "test_cas"
-	s.cleanKeyPrefix(prefix)
+	for _, serverSupportsCASBatching := range []bool{true, false} {
+		prefix := fmt.Sprintf("test_cas_batching_supported_%v", serverSupportsCASBatching)
+		s.client.SetServerSupportsCASBatching(serverSupportsCASBatching)
 
-	success, old := s.mustCAS(prefix, "key", "", "hello world")
-	s.True(success)
-	s.Equal("", old)
+		s.cleanKeyPrefix(prefix)
 
-	v := s.mustGet(prefix, "key")
-	s.Equal("hello world", v)
+		success, old := s.mustCAS(prefix, "key", "", "hello world")
+		s.True(success)
+		s.Equal("", old)
 
-	success, old = s.mustCAS(prefix, "key", "hello", "world")
-	s.False(success)
-	s.Equal("hello world", old)
+		v := s.mustGet(prefix, "key")
+		s.Equal("hello world", v)
 
-	v = s.mustGet(prefix, "key")
-	s.Equal("hello world", v)
+		success, old = s.mustCAS(prefix, "key", "hello", "world")
+		s.False(success)
+		s.Equal("hello world", old)
 
-	success, old = s.mustCAS(prefix, "key", "hello world", "world")
-	s.True(success)
-	s.Equal("hello world", old)
+		v = s.mustGet(prefix, "key")
+		s.Equal("hello world", v)
 
-	v = s.mustGet(prefix, "key")
-	s.Equal("world", v)
+		success, old = s.mustCAS(prefix, "key", "hello world", "world")
+		s.True(success)
+		s.Equal("hello world", old)
+
+		v = s.mustGet(prefix, "key")
+		s.Equal("world", v)
+	}
 }
 
 func (s *apiTestSuite) TestCAD() {
 	prefix := "test_cad"
 	s.cleanKeyPrefix(prefix)
+
+	// Attempt a CAD on a non-existent key. This should fail.
+	success, oldBytes := s.mustCADBytes(prefix, "key", []byte("hello world"))
+	s.False(success)
+	s.Nil(oldBytes)
 
 	// Put key first
 	s.mustPut(prefix, "key", "hello world")
@@ -408,11 +417,9 @@ func (s *apiTestSuite) TestCAD() {
 	s.Equal("hello world", old)
 	s.mustNotExist(prefix, "key")
 
-	// Attempt to CAD a non-existent key. The API should succeed and
-	// return a nil old value, indicating the key does not exist.
-	success, oldBytes := s.mustCADBytes(prefix, "key", nil)
-	s.True(success)
-	s.Nil(oldBytes)
+	// Attempt to CAD a nil key. This should error.
+	_, _, err := s.clientForCas.CompareAndDelete(context.Background(), []byte(withPrefix(prefix, "key")), nil)
+	s.Error(err)
 
 	// Put key again
 	s.mustPut(prefix, "key", "hello world")
@@ -422,14 +429,8 @@ func (s *apiTestSuite) TestCAD() {
 	s.False(success)
 	s.Equal("hello world", old)
 
-	// Attempt to CAD with a nil old value (i.e. expect the key to not exist)
-	// It should fail and return the existing value
-	success, oldBytes = s.mustCADBytes(prefix, "key", nil)
-	s.False(success)
-	s.Equal([]byte("hello world"), oldBytes)
-
 	// Put an empty value
-	err := s.client.Put(context.Background(), []byte(withPrefix(prefix, "key")), []byte{})
+	err = s.client.Put(context.Background(), []byte(withPrefix(prefix, "key")), []byte{})
 	s.Nil(err)
 
 	// Delete it via CAD
