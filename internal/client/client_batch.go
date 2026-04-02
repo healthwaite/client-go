@@ -641,7 +641,20 @@ func (c *batchCommandsClient) batchRecvLoop(cfg config.TiKVClient, tikvTransport
 			logutil.Eventf(entry.ctx, "receive %T response with other %d batched requests from %s", responses[i].GetCmd(), len(responses), c.target)
 			if atomic.LoadInt32(&entry.canceled) == 0 {
 				// Put the response only if the request is not canceled.
-				entry.res <- responses[i]
+
+				// If the request context includes the key "sleep" then launch a goroutine which sleeps
+				// for 20s then puts it into the channel.
+				if entry.ctx.Value("sleep") != nil {
+					go func() {
+						logutil.BgLogger().Info("got GET request with \"sleep\" set will sleep for 20s before putting response into channel",
+							zap.Uint64("requestID", requestID),
+							zap.String("forwardedHost", streamClient.forwardedHost))
+						time.Sleep(20 * time.Second)
+						entry.res <- responses[i]
+					}()
+				} else {
+					entry.res <- responses[i]
+				}
 			}
 			c.batched.Delete(requestID)
 		}
