@@ -74,6 +74,9 @@ type rawOptions struct {
 
 	// This field is used for Scan()/ReverseScan().
 	KeyOnly bool
+
+	// ReadTimeout is the timeout for read operations. If not set, client.ReadTimeoutShort is used.
+	ReadTimeout time.Duration
 }
 
 // RawChecksum represents the checksum result of raw kv pairs in TiKV cluster.
@@ -90,8 +93,9 @@ type RawChecksum struct {
 // to tweak the API behavior.
 //
 // Available options are:
-// - ScanColumnFamily
+// - SetColumnFamily
 // - ScanKeyOnly
+// - WithReadTimeout
 type RawOption interface {
 	apply(opts *rawOptions)
 }
@@ -115,6 +119,13 @@ func SetColumnFamily(cf string) RawOption {
 func ScanKeyOnly() RawOption {
 	return rawOptionFunc(func(opts *rawOptions) {
 		opts.KeyOnly = true
+	})
+}
+
+// WithReadTimeout is a RawOption to set a custom read timeout for the operation.
+func WithReadTimeout(timeout time.Duration) RawOption {
+	return rawOptionFunc(func(opts *rawOptions) {
+		opts.ReadTimeout = timeout
 	})
 }
 
@@ -273,7 +284,7 @@ func (c *Client) Get(ctx context.Context, key []byte, options ...RawOption) ([]b
 			Key: key,
 			Cf:  c.getColumnFamily(opts),
 		})
-	resp, _, err := c.sendReq(ctx, key, req, false)
+	resp, _, err := c.sendReq(ctx, key, req, false, opts)
 	if err != nil {
 		return nil, err
 	}
@@ -342,7 +353,7 @@ func (c *Client) PutWithTTL(ctx context.Context, key, value []byte, ttl uint64, 
 		Cf:     c.getColumnFamily(opts),
 		ForCas: c.atomic,
 	})
-	resp, _, err := c.sendReq(ctx, key, req, false)
+	resp, _, err := c.sendReq(ctx, key, req, false, opts)
 	if err != nil {
 		return err
 	}
@@ -366,7 +377,7 @@ func (c *Client) GetKeyTTL(ctx context.Context, key []byte, options ...RawOption
 		Key: key,
 		Cf:  c.getColumnFamily(opts),
 	})
-	resp, _, err := c.sendReq(ctx, key, req, false)
+	resp, _, err := c.sendReq(ctx, key, req, false, opts)
 
 	if err != nil {
 		return nil, err
@@ -434,7 +445,7 @@ func (c *Client) Delete(ctx context.Context, key []byte, options ...RawOption) e
 		ForCas: c.atomic,
 	})
 	req.MaxExecutionDurationMs = uint64(client.MaxWriteExecutionTime.Milliseconds())
-	resp, _, err := c.sendReq(ctx, key, req, false)
+	resp, _, err := c.sendReq(ctx, key, req, false, opts)
 	if err != nil {
 		return err
 	}
@@ -484,8 +495,8 @@ func (c *Client) DeleteRange(ctx context.Context, startKey []byte, endKey []byte
 	}()
 
 	// Process each affected region respectively
+	opts := c.getRawKVOptions(options...)
 	for !bytes.Equal(startKey, endKey) {
-		opts := c.getRawKVOptions(options...)
 		var resp *tikvrpc.Response
 		var actualEndKey []byte
 		resp, actualEndKey, err = c.sendDeleteRangeReq(ctx, startKey, endKey, opts)
@@ -530,7 +541,7 @@ func (c *Client) Scan(ctx context.Context, startKey, endKey []byte, limit int, o
 			KeyOnly:  opts.KeyOnly,
 			Cf:       c.getColumnFamily(opts),
 		})
-		resp, loc, err := c.sendReq(ctx, startKey, req, false)
+		resp, loc, err := c.sendReq(ctx, startKey, req, false, opts)
 		if err != nil {
 			return nil, nil, err
 		}
@@ -578,7 +589,7 @@ func (c *Client) ReverseScan(ctx context.Context, startKey, endKey []byte, limit
 			KeyOnly:  opts.KeyOnly,
 			Cf:       c.getColumnFamily(opts),
 		})
-		resp, loc, err := c.sendReq(ctx, startKey, req, true)
+		resp, loc, err := c.sendReq(ctx, startKey, req, true, opts)
 		if err != nil {
 			return nil, nil, err
 		}
@@ -609,6 +620,7 @@ func (c *Client) Checksum(ctx context.Context, startKey, endKey []byte, options 
 	start := time.Now()
 	defer func() { metrics.RawkvCmdHistogramWithRawChecksum.Observe(time.Since(start).Seconds()) }()
 
+	opts := c.getRawKVOptions(options...)
 	for len(endKey) == 0 || bytes.Compare(startKey, endKey) < 0 {
 		req := tikvrpc.NewRequest(tikvrpc.CmdRawChecksum, &kvrpcpb.RawChecksumRequest{
 			Algorithm: kvrpcpb.ChecksumAlgorithm_Crc64_Xor,
@@ -617,7 +629,7 @@ func (c *Client) Checksum(ctx context.Context, startKey, endKey []byte, options 
 				EndKey:   endKey,
 			}},
 		})
-		resp, loc, err := c.sendReq(ctx, startKey, req, false)
+		resp, loc, err := c.sendReq(ctx, startKey, req, false, opts)
 		if err != nil {
 			return RawChecksum{0, 0, 0}, err
 		}
@@ -665,7 +677,7 @@ func (c *Client) CompareAndSwap(ctx context.Context, key, previousValue, newValu
 
 	req := tikvrpc.NewRequest(tikvrpc.CmdRawCompareAndSwap, &reqArgs)
 	req.MaxExecutionDurationMs = uint64(client.MaxWriteExecutionTime.Milliseconds())
-	resp, _, err := c.sendReq(ctx, key, req, false)
+	resp, _, err := c.sendReq(ctx, key, req, false, opts)
 	if err != nil {
 		return nil, false, err
 	}
@@ -684,9 +696,10 @@ func (c *Client) CompareAndSwap(ctx context.Context, key, previousValue, newValu
 	return convertNilToEmptySlice(cmdResp.PreviousValue), cmdResp.Succeed, nil
 }
 
-func (c *Client) sendReq(ctx context.Context, key []byte, req *tikvrpc.Request, reverse bool) (*tikvrpc.Response, *locate.KeyLocation, error) {
+func (c *Client) sendReq(ctx context.Context, key []byte, req *tikvrpc.Request, reverse bool, opts *rawOptions) (*tikvrpc.Response, *locate.KeyLocation, error) {
 	bo := retry.NewBackofferWithVars(ctx, rawkvMaxBackoff, nil)
 	sender := locate.NewRegionRequestSender(c.regionCache, c.rpcClient)
+	timeout := c.getReadTimeout(opts)
 	for {
 		var loc *locate.KeyLocation
 		var err error
@@ -698,7 +711,7 @@ func (c *Client) sendReq(ctx context.Context, key []byte, req *tikvrpc.Request, 
 		if err != nil {
 			return nil, nil, err
 		}
-		resp, _, err := sender.SendReq(bo, req, loc.Region, client.ReadTimeoutShort)
+		resp, _, err := sender.SendReq(bo, req, loc.Region, timeout)
 		if err != nil {
 			return nil, nil, err
 		}
@@ -785,7 +798,8 @@ func (c *Client) doBatchReq(bo *retry.Backoffer, batch kvrpc.Batch, options *raw
 
 	sender := locate.NewRegionRequestSender(c.regionCache, c.rpcClient)
 	req.MaxExecutionDurationMs = uint64(client.MaxWriteExecutionTime.Milliseconds())
-	resp, _, err := sender.SendReq(bo, req, batch.RegionID, client.ReadTimeoutShort)
+	timeout := c.getReadTimeout(options)
+	resp, _, err := sender.SendReq(bo, req, batch.RegionID, timeout)
 
 	batchResp := kvrpc.BatchResult{}
 	if err != nil {
@@ -852,7 +866,8 @@ func (c *Client) sendDeleteRangeReq(ctx context.Context, startKey []byte, endKey
 		})
 
 		req.MaxExecutionDurationMs = uint64(client.MaxWriteExecutionTime.Milliseconds())
-		resp, _, err := sender.SendReq(bo, req, loc.Region, client.ReadTimeoutShort)
+		timeout := c.getReadTimeout(opts)
+		resp, _, err := sender.SendReq(bo, req, loc.Region, timeout)
 		if err != nil {
 			return nil, nil, err
 		}
@@ -938,7 +953,8 @@ func (c *Client) doBatchPut(bo *retry.Backoffer, batch kvrpc.Batch, opts *rawOpt
 	sender := locate.NewRegionRequestSender(c.regionCache, c.rpcClient)
 	req.MaxExecutionDurationMs = uint64(client.MaxWriteExecutionTime.Milliseconds())
 	req.ApiVersion = c.apiVersion
-	resp, _, err := sender.SendReq(bo, req, batch.RegionID, client.ReadTimeoutShort)
+	timeout := c.getReadTimeout(opts)
+	resp, _, err := sender.SendReq(bo, req, batch.RegionID, timeout)
 	if err != nil {
 		return err
 	}
@@ -978,6 +994,14 @@ func (c *Client) getRawKVOptions(options ...RawOption) *rawOptions {
 		op.apply(&opts)
 	}
 	return &opts
+}
+
+// getReadTimeout returns the read timeout from options, or client.ReadTimeoutShort if not set.
+func (c *Client) getReadTimeout(opts *rawOptions) time.Duration {
+	if opts != nil && opts.ReadTimeout > 0 {
+		return opts.ReadTimeout
+	}
+	return client.ReadTimeoutShort
 }
 
 // convertNilToEmptySlice is used to convert value of existed key return from TiKV.
