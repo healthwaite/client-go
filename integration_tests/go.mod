@@ -23,7 +23,6 @@ require (
 	github.com/Azure/go-ntlmssp v0.0.0-20221128193559-754e69321358 // indirect
 	github.com/BurntSushi/toml v1.5.0 // indirect
 	github.com/HdrHistogram/hdrhistogram-go v1.1.2 // indirect
-	github.com/JohnCGriffin/overflow v0.0.0-20211019200055-46fa312c352c // indirect
 	github.com/asaskevich/govalidator v0.0.0-20230301143203-a9d515a09cc2 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
@@ -103,7 +102,6 @@ require (
 	golang.org/x/text v0.31.0 // indirect
 	golang.org/x/time v0.14.0 // indirect
 	golang.org/x/tools v0.39.0 // indirect
-	gonum.org/v1/gonum v0.8.2 // indirect
 	google.golang.org/genproto/googleapis/api v0.0.0-20240401170217-c3f982113cda // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20250425173222-7b384671a197 // indirect
 	google.golang.org/grpc v1.63.2 // indirect
@@ -123,3 +121,5 @@ replace (
 	github.com/pingcap/tidb => github.com/lcwangchao/tidb v1.1.0-beta.0.20260126055322-e31e3f51a340
 	github.com/pingcap/tidb/pkg/parser => github.com/lcwangchao/tidb/pkg/parser v0.0.0-20260126055322-e31e3f51a340
 )
+
+replace github.com/pingcap/kvproto => github.com/healthwaite/kvproto v0.0.0-20260714144113-087f5508a11a
