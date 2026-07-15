@@ -239,7 +239,7 @@ func (s *apiTestSuite) mustCADBytes(prefix, key string, old []byte) (bool, []byt
 	return success, oldValue
 }
 
-// `old == ""` means "not exist"
+// `old == ""` means the key does not exist
 func (s *apiTestSuite) mustCAS(prefix, key, old, new string) (bool, string) {
 	var oldValue []byte
 	if old != "" {
@@ -249,7 +249,7 @@ func (s *apiTestSuite) mustCAS(prefix, key, old, new string) (bool, string) {
 	return success, string(oldValue)
 }
 
-// `old == ""` means "not exist"
+// `old == ""` means the key does not exist
 func (s *apiTestSuite) mustCAD(prefix, key, old string) (bool, string) {
 	var oldValue []byte
 	if old != "" {

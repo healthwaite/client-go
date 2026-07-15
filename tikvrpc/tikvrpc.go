@@ -271,8 +271,6 @@ type Request struct {
 	AccessLocation kv.AccessLocationType
 	// rev represents the revision of the request, it's increased when `Req.Context` gets patched.
 	rev uint32
-	// ServerSupportsCASBatching indicates whether the server supports sending RawCASRequest's in BatchCommandsRequest's
-	ServerSupportsCASBatching bool
 }
 
 // NewRequest returns new kv rpc request.
@@ -305,13 +303,6 @@ func (req *Request) SetReplicaReadType(replicaReadType kv.ReplicaReadType) {
 	}
 	req.ReplicaRead = replicaReadType.IsFollowerRead()
 	req.ReplicaReadType = replicaReadType
-}
-
-func (req *Request) SetServerSupportsCASBatching(serverSupportsCASBatching bool) {
-	if req == nil {
-		return
-	}
-	req.ServerSupportsCASBatching = serverSupportsCASBatching
 }
 
 // GetReplicaReadSeed returns ReplicaReadSeed pointer.

@@ -122,14 +122,13 @@ func ScanKeyOnly() RawOption {
 // Client is a client of TiKV server which is used as a key-value storage,
 // only GET/PUT/DELETE commands are supported.
 type Client struct {
-	apiVersion                kvrpcpb.APIVersion
-	clusterID                 uint64
-	regionCache               *locate.RegionCache
-	pdClient                  pd.Client
-	rpcClient                 client.Client
-	cf                        string
-	atomic                    bool
-	serverSupportsCASBatching bool
+	apiVersion  kvrpcpb.APIVersion
+	clusterID   uint64
+	regionCache *locate.RegionCache
+	pdClient    pd.Client
+	rpcClient   client.Client
+	cf          string
+	atomic      bool
 }
 
 type option struct {
@@ -187,14 +186,6 @@ func (c *Client) SetAtomicForCAS(b bool) *Client {
 // SetColumnFamily sets columnFamily for client
 func (c *Client) SetColumnFamily(columnFamily string) *Client {
 	c.cf = columnFamily
-	return c
-}
-
-// SetServerSupportsCASBatching is a rawkvOptions that tells the client that
-// the server supports sending RawCASRequest's in BatchCommandsRequest's.
-// Older versions of the server only supported RawCASRequest's via unary RPCs.
-func (c *Client) SetServerSupportsCASBatching(b bool) *Client {
-	c.serverSupportsCASBatching = b
 	return c
 }
 
@@ -678,7 +669,6 @@ func (c *Client) CompareAndSwap(ctx context.Context, key, previousValue, newValu
 	}
 
 	req := tikvrpc.NewRequest(tikvrpc.CmdRawCompareAndSwap, &reqArgs)
-	req.SetServerSupportsCASBatching(c.serverSupportsCASBatching)
 	req.MaxExecutionDurationMs = uint64(client.MaxWriteExecutionTime.Milliseconds())
 	resp, _, err := c.sendReq(ctx, key, req, false)
 	if err != nil {
