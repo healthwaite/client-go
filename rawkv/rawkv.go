@@ -190,14 +190,6 @@ func (c *Client) SetColumnFamily(columnFamily string) *Client {
 	return c
 }
 
-// SetServerSupportsCASBatching is a rawkvOptions that tells the client that
-// the server supports sending RawCASRequest's in BatchCommandsRequest's.
-// Older versions of the server only supported RawCASRequest's via unary RPCs.
-func (c *Client) SetServerSupportsCASBatching(b bool) *Client {
-	c.serverSupportsCASBatching = b
-	return c
-}
-
 // NewClient creates a client with PD cluster addrs.
 func NewClient(ctx context.Context, pdAddrs []string, security config.Security, opts ...pd.ClientOption) (*Client, error) {
 	return NewClientWithOpts(ctx, pdAddrs, WithSecurity(security), WithPDOptions(opts...))
@@ -678,7 +670,6 @@ func (c *Client) CompareAndSwap(ctx context.Context, key, previousValue, newValu
 	}
 
 	req := tikvrpc.NewRequest(tikvrpc.CmdRawCompareAndSwap, &reqArgs)
-	req.SetServerSupportsCASBatching(c.serverSupportsCASBatching)
 	req.MaxExecutionDurationMs = uint64(client.MaxWriteExecutionTime.Milliseconds())
 	resp, _, err := c.sendReq(ctx, key, req, false)
 	if err != nil {

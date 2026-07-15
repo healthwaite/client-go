@@ -369,33 +369,28 @@ func (s *apiTestSuite) TestBatchOp() {
 }
 
 func (s *apiTestSuite) TestCAS() {
-	for _, serverSupportsCASBatching := range []bool{true, false} {
-		prefix := fmt.Sprintf("test_cas_batching_supported_%v", serverSupportsCASBatching)
-		s.client.SetServerSupportsCASBatching(serverSupportsCASBatching)
+	s.cleanKeyPrefix(prefix)
 
-		s.cleanKeyPrefix(prefix)
+	success, old := s.mustCAS(prefix, "key", "", "hello world")
+	s.True(success)
+	s.Equal("", old)
 
-		success, old := s.mustCAS(prefix, "key", "", "hello world")
-		s.True(success)
-		s.Equal("", old)
+	v := s.mustGet(prefix, "key")
+	s.Equal("hello world", v)
 
-		v := s.mustGet(prefix, "key")
-		s.Equal("hello world", v)
+	success, old = s.mustCAS(prefix, "key", "hello", "world")
+	s.False(success)
+	s.Equal("hello world", old)
 
-		success, old = s.mustCAS(prefix, "key", "hello", "world")
-		s.False(success)
-		s.Equal("hello world", old)
+	v = s.mustGet(prefix, "key")
+	s.Equal("hello world", v)
 
-		v = s.mustGet(prefix, "key")
-		s.Equal("hello world", v)
+	success, old = s.mustCAS(prefix, "key", "hello world", "world")
+	s.True(success)
+	s.Equal("hello world", old)
 
-		success, old = s.mustCAS(prefix, "key", "hello world", "world")
-		s.True(success)
-		s.Equal("hello world", old)
-
-		v = s.mustGet(prefix, "key")
-		s.Equal("world", v)
-	}
+	v = s.mustGet(prefix, "key")
+	s.Equal("world", v)
 }
 
 func (s *apiTestSuite) TestCAD() {
