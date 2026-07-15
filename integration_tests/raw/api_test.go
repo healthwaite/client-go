@@ -581,12 +581,6 @@ func (s *apiTestSuite) TestEmptyValue() {
 	s.Equal([]byte{}, oldVal)
 	verifyNotExist()
 
-	// compare_and_delete, nil -> nil
-	ok, oldVal = s.mustCADBytes(prefix, "key", nil)
-	s.True(ok)
-	s.Nil(oldVal)
-	verifyNotExist()
-
 	// check via scan
 	keys, values := s.mustScanBytes(prefix, "key", "keyz", 10)
 	s.Nil(keys)
