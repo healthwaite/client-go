@@ -369,6 +369,7 @@ func (s *apiTestSuite) TestBatchOp() {
 }
 
 func (s *apiTestSuite) TestCAS() {
+	prefix := "test_cas"
 	s.cleanKeyPrefix(prefix)
 
 	success, old := s.mustCAS(prefix, "key", "", "hello world")
