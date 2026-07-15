@@ -10,3 +10,6 @@ endpoints = ["127.0.0.1:2379"]
 max-open-files = 10000
 [raftdb]
 max-open-files = 10000
+[pessimistic-txn]
+in-memory = true
+
