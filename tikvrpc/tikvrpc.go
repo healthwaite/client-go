@@ -698,14 +698,6 @@ func (req *Request) ToBatchCommandsRequest() *tikvpb.BatchCommandsRequest_Reques
 		return &tikvpb.BatchCommandsRequest_Request{Cmd: &tikvpb.BatchCommandsRequest_Request_GetHealthFeedback{GetHealthFeedback: req.GetHealthFeedback()}}
 	case CmdBroadcastTxnStatus:
 		return &tikvpb.BatchCommandsRequest_Request{Cmd: &tikvpb.BatchCommandsRequest_Request_BroadcastTxnStatus{BroadcastTxnStatus: req.BroadcastTxnStatus()}}
-<<<<<<< HEAD
-=======
-	case CmdRawCompareAndSwap:
-		if req.ServerSupportsCASBatching {
-			return &tikvpb.BatchCommandsRequest_Request{Cmd: &tikvpb.BatchCommandsRequest_Request_RawCompareAndSwap{RawCompareAndSwap: req.RawCompareAndSwap()}}
-		}
-		return nil
->>>>>>> bf54cfb (WIP)
 	case CmdRawCompareAndDelete:
 		return &tikvpb.BatchCommandsRequest_Request{Cmd: &tikvpb.BatchCommandsRequest_Request_RawCompareAndDelete{RawCompareAndDelete: req.RawCompareAndDelete()}}
 	}
@@ -835,11 +827,6 @@ func FromBatchCommandsResponse(res *tikvpb.BatchCommandsResponse_Response) (*Res
 		return &Response{Resp: res.GetHealthFeedback}, nil
 	case *tikvpb.BatchCommandsResponse_Response_BroadcastTxnStatus:
 		return &Response{Resp: res.BroadcastTxnStatus}, nil
-<<<<<<< HEAD
-=======
-	case *tikvpb.BatchCommandsResponse_Response_RawCompareAndSwap:
-		return &Response{Resp: res.RawCompareAndSwap}, nil
->>>>>>> bf54cfb (WIP)
 	case *tikvpb.BatchCommandsResponse_Response_RawCompareAndDelete:
 		return &Response{Resp: res.RawCompareAndDelete}, nil
 	}
